@@ -139,6 +139,8 @@ const Sidebar = {
 function navTo(pageId) {
   // Memoriza última página visitada
   try { localStorage.setItem('insumos_last_page', pageId); } catch(e) {}
+  // Informa ao pai (GLPI) qual página está ativa
+  try { if(window.parent !== window) window.parent.postMessage({insumos_current_page: pageId}, '*'); } catch(e) {}
   document.querySelectorAll('.page-content').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   const page = document.getElementById('page-' + pageId);
@@ -335,14 +337,23 @@ const Formulario = {
     });
   },
 
+  _chamadoTimer: null,
   async buscarChamado(valor) {
     const info = document.getElementById('saidaChamadoInfo');
     const saidaSetor = document.getElementById('saidaSetor');
     const descField = document.getElementById('saidaDesc');
     const locField = document.getElementById('saidaLoc');
-    if (!valor || valor.length < 2) { if(info) info.textContent=''; return; }
-    const id = parseInt(valor);
+    // Remove espaços, tabs e caracteres não numéricos
+    const valorLimpo = valor.replace(/[^0-9]/g, '');
+    if (!valorLimpo) { if(info) info.textContent=''; return; }
+    const id = parseInt(valorLimpo);
     if (!id || id <= 0) { if(info) info.textContent=''; return; }
+    // Atualiza o campo com o valor limpo
+    const campo = document.getElementById('saidaRef');
+    if (campo && campo.value !== valorLimpo) campo.value = valorLimpo;
+    // Debounce — só busca 800ms após parar de digitar
+    clearTimeout(this._chamadoTimer);
+    this._chamadoTimer = setTimeout(async () => {
     if(info) info.innerHTML = '<span style="color:var(--text-2)">🔍 Buscando chamado...</span>';
     try {
       const r = await apiFetch({action:'chamado_info', chamado_id:id});
@@ -372,6 +383,7 @@ const Formulario = {
     } catch {
       if(info) info.innerHTML = '<span style="color:var(--danger)">❌ Erro ao buscar chamado.</span>';
     }
+    }, 800); // fim debounce
   }
 };
 
@@ -1035,13 +1047,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   const validPages = ['dashboard','estoque','painel-estoque','entrada','saida','inventario','historico','relatorio','usuarios','perfil'];
   const _ssoPage = localStorage.getItem('insumos_sso_page');
   const _lastPage = localStorage.getItem('insumos_last_page');
-  if (_ssoPage) {
+  if (_ssoPage && _ssoPage !== 'dashboard') {
+    // Página específica solicitada — vai direto para ela
     localStorage.removeItem('insumos_sso_page');
     navTo(validPages.includes(_ssoPage) ? _ssoPage : 'dashboard');
+  } else if (_lastPage && validPages.includes(_lastPage)) {
+    // Restaura última página visitada
+    localStorage.removeItem('insumos_sso_page');
+    navTo(_lastPage);
   } else if (hashPage && validPages.includes(hashPage)) {
     navTo(hashPage);
-  } else if (_lastPage && validPages.includes(_lastPage)) {
-    navTo(_lastPage);
   } else {
     navTo('dashboard');
   }

@@ -108,6 +108,19 @@ document.getElementById('ins-frame').addEventListener('load', function() {
 
 ajustar();
 window.addEventListener('resize', ajustar);
+
+// Escuta mensagem do iframe informando qual página está ativa
+window.addEventListener('message', function(e) {
+  if (e.data && e.data.insumos_current_page) {
+    var page = e.data.insumos_current_page;
+    document.querySelectorAll('.ins-tab').forEach(function(t) {
+      t.classList.toggle('active',
+        t.getAttribute('onclick') &&
+        t.getAttribute('onclick').indexOf("'" + page + "'") !== -1
+      );
+    });
+  }
+});
 </script>
 
 <?php Html::footer(); ?>
